@@ -170,11 +170,47 @@ static void test_parse_errors() {
   CHECK(q.frame().wants_ack() && !q.frame().is_ack());
 }
 
+static void test_night_light() {
+  // captured 0x40C1 reports, pushed by the MCU after a night light button press
+  FrameParser p;
+  FrameParser::Result r;
+  Status s;
+  Bytes cycle = {0xA5, 0x02, 0x14, 0x1D, 0x00, 0x2B, 0x01, 0xC1, 0x40, 0x00, 0x02, 0x00, 0x02, 0x00,
+                 0x00, 0x01, 0x00, 0x64, 0x01, 0x44, 0x3B, 0x17, 0x00, 0x00, 0x00, 0x01, 0x00, 0xFF,
+                 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF};
+  parse_all(p, cycle, r);
+  CHECK(r == FrameParser::Result::FRAME);
+  CHECK(p.frame().cmd() == 0x40C1 && !p.frame().is_ack());
+  CHECK(decode_status(p.frame().data(), p.frame().data_len(), s));
+  CHECK(s.has_night_light && s.night_light_on && s.night_light_cycle);
+
+  Bytes blue = {0xA5, 0x02, 0x1B, 0x1D, 0x00, 0x58, 0x01, 0xC1, 0x40, 0x00, 0x02, 0x00, 0x02, 0x00,
+                0x00, 0x01, 0x00, 0x64, 0x01, 0x44, 0x3B, 0x17, 0x00, 0x00, 0x00, 0x01, 0x01, 0x14,
+                0x28, 0x8C, 0x00, 0xFF, 0xFF, 0xFF, 0xFF};
+  parse_all(p, blue, r);
+  CHECK(r == FrameParser::Result::FRAME);
+  CHECK(decode_status(p.frame().data(), p.frame().data_len(), s));
+  CHECK(s.night_light_on && !s.night_light_cycle);
+  CHECK(s.night_light_r == 0x14 && s.night_light_g == 0x28 && s.night_light_b == 0x8C);
+  CHECK(std::strcmp(night_light_color_name(s.night_light_r, s.night_light_g, s.night_light_b), "Blue") == 0);
+  CHECK(night_light_color_name(1, 2, 3) == nullptr);
+
+  // off keeps the last colour
+  Bytes off(p.frame().data(), p.frame().data() + p.frame().data_len());
+  off[15] = 0;
+  CHECK(decode_status(off.data(), off.size(), s));
+  CHECK(!s.night_light_on && s.night_light_b == 0x8C);
+  // a 20-byte block has no night light
+  CHECK(decode_status(off.data(), 19, s));
+  CHECK(!s.has_night_light);
+}
+
 int main() {
   test_encode();
   test_parse_ack();
   test_status_variants();
   test_parse_errors();
+  test_night_light();
   if (failures != 0) {
     std::printf("%d check(s) failed\n", failures);
     return 1;

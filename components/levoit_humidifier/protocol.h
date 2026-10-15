@@ -108,6 +108,8 @@ class FrameParser {
 
 static const size_t STATUS_MIN_LEN = 15;
 static const size_t STATUS_CLEAN_REMINDER = 20;  // only from MCUs that keep the reminder themselves
+static const size_t STATUS_NIGHT_LIGHT = 15;     // on, mode, r, g, b (US model, MCU 2.0.02)
+static const uint8_t NIGHT_LIGHT_CYCLE = 0;      // byte 16: colour cycle; 1 = fixed colour
 static const uint8_t MODE_MANUAL = 1;            // 0 = auto; the stock firmware's internal mode 4
 static const uint8_t HUMIDITY_HIGH_ABOVE = 80;   // the stock firmware's humidity_high
 
@@ -132,6 +134,10 @@ struct Status {
   uint8_t exception{0};       // non-zero: the stock firmware raises a humidifierError
   bool has_clean_reminder{false};
   bool clean_reminder{false};
+  bool has_night_light{false};
+  bool night_light_on{false};
+  bool night_light_cycle{false};  // colour cycle instead of a fixed colour
+  uint8_t night_light_r{0}, night_light_g{0}, night_light_b{0};  // fixed colour, kept while off
 
   bool manual() const { return this->mode == MODE_MANUAL; }
   // the app counts the display as on only while the humidifier is on
@@ -168,7 +174,36 @@ inline bool decode_status(const uint8_t *d, size_t len, Status &s) {
   s.exception = d[14];
   s.has_clean_reminder = len > STATUS_CLEAN_REMINDER;
   s.clean_reminder = s.has_clean_reminder && d[STATUS_CLEAN_REMINDER];
+  s.has_night_light = len > STATUS_NIGHT_LIGHT + 4;
+  if (s.has_night_light) {
+    const uint8_t *n = d + STATUS_NIGHT_LIGHT;
+    s.night_light_on = n[0];
+    s.night_light_cycle = n[1] == NIGHT_LIGHT_CYCLE;
+    s.night_light_r = n[2];
+    s.night_light_g = n[3];
+    s.night_light_b = n[4];
+  }
   return true;
+}
+
+// The colours the night light button steps through, as the status reports them.
+struct NightLightColor {
+  const char *name;
+  uint8_t r, g, b;
+};
+static const NightLightColor NIGHT_LIGHT_COLORS[] = {
+    {"White", 0xFF, 0xFF, 0xFF}, {"Red", 0xD7, 0x1E, 0x78},  {"Purple", 0x28, 0x00, 0xFF},
+    {"Light Purple", 0x14, 0x14, 0xBE}, {"Blue", 0x14, 0x28, 0x8C}, {"Aqua", 0x14, 0xE6, 0xB4},
+    {"Orange", 0xD2, 0x50, 0x00},
+};
+
+// name of a button colour, nullptr for any other RGB value
+inline const char *night_light_color_name(uint8_t r, uint8_t g, uint8_t b) {
+  for (const auto &c : NIGHT_LIGHT_COLORS) {
+    if (c.r == r && c.g == g && c.b == b)
+      return c.name;
+  }
+  return nullptr;
 }
 
 // ---- command data ----
