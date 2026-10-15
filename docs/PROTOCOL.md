@@ -127,7 +127,11 @@ ACK reply format: `A5 12 <their seq> 04 00 <cs> 01 <cmd_lo> <cmd_hi> 00`.
 | 12 | mode | 0 = auto, 1 = manual (stock internal mode 4) |
 | 13 | mist_lvl | 1–2 |
 | 14 | other_exception | error flags |
+| 15 | night light on | 1 = on, 0 = off (US model with the 7-colour light) |
+| 16 | night light mode | 0 = colour cycle, 1 = fixed colour |
+| 17–19 | night light RGB | fixed colour; kept while off, `FF FF FF` in cycle mode |
 | 20 | container_clean_status | |
+| 21–24 | unknown | always `FF` so far (no brightness byte found) |
 
 Total copied: 25 bytes.
 
@@ -145,6 +149,31 @@ display off   A5 22 06 05 00 86 01 05 A1 00 00
 ## Still to confirm on hardware
 
 - `cur_temp` unit, `other_exception` bits.
-- Whether the MCU pushes 0x40C1 on its own; the component polls 0x40C0 every 5 s either way.
+- ~~Whether the MCU pushes 0x40C1 on its own~~: it does (MCU 2.0.02), e.g. right after the
+  night light button is pressed. The component polls 0x40C0 every 5 s either way.
+- ESP → MCU command that sets the night light (opcode and data unknown, see below).
 - Position of the clean-reminder flag (byte 20); it has only been seen as 0.
 - Which physical long-press sends which 0xD102/0xD103 value.
+
+## Night light (US Dual 200S, MCU 2.0.02)
+
+The US unit has a 7-colour night light, controllable from the VeSync app, so it goes through
+the MCU. Its state is in status bytes 15–19 (decoded from captures, 2026-10-15). The button
+on the device steps through:
+
+| Step | byte 15 | byte 16 | RGB (17–19) |
+|---|---|---|---|
+| Off | 00 | (last) | (last) |
+| Colour cycle | 01 | 00 | FF FF FF |
+| White | 01 | 01 | FF FF FF |
+| Red | 01 | 01 | D7 1E 78 |
+| Purple | 01 | 01 | 28 00 FF |
+| Light purple | 01 | 01 | 14 14 BE |
+| Blue | 01 | 01 | 14 28 8C |
+| Aqua | 01 | 01 | 14 E6 B4 |
+| Orange | 01 | 01 | D2 50 00 |
+
+The set command is not known yet. Best guess: the Classic 300S sets its (single-colour)
+night light with 0xA003 `[1, brightness%]`, and it shares the A0xx/A1xx/A2xx opcode family
+with this model, so 0xA003 with `[on, mode, r, g, b]` (the status layout) is the first
+thing to try.
