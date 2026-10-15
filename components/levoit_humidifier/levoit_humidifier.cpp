@@ -490,9 +490,10 @@ void LevoitHumidifier::handle_status_(const uint8_t *data, size_t len) {
   if (raw != this->last_raw_status_) {
     ESP_LOGD(TAG,
              "Status: power=%u mode=%s target=%u%% humidity=%u%% tank=%s water=%s auto_stopped=%u "
-             "display=%u error=%u raw=%s",
+             "display=%u error=%u night_light=%u/%s/%02X%02X%02X raw=%s",
              s.power, MODE_NAMES[s.mode_index()], s.target, s.humidity, s.tank_lifted ? "lifted" : "in",
-             s.water_lacks ? "low" : "ok", s.auto_stopped, s.display_config, s.exception,
+             s.water_lacks ? "low" : "ok", s.auto_stopped, s.display_config, s.exception, s.night_light_on,
+             s.night_light_cycle ? "cycle" : "fixed", s.night_light_r, s.night_light_g, s.night_light_b,
              format_hex_pretty(data, len).c_str());
     this->last_raw_status_ = std::move(raw);
     this->mqtt_dirty_ = true;
@@ -573,6 +574,23 @@ void LevoitHumidifier::publish_status_(const Status &s, bool first) {
   auto *ver = this->text_sensors_[(size_t) TextSensorType::MCU_VERSION];
   if (ver != nullptr && first)
     ver->publish_state(str_sprintf("%u.%u.%02u", s.fw_major, s.fw_minor, s.fw_patch));
+
+  if (s.has_night_light) {
+    auto pub_text = [&](TextSensorType t, const std::string &v) {
+      auto *e = this->text_sensors_[(size_t) t];
+      if (e != nullptr && (first || !e->has_state() || e->state != v))
+        e->publish_state(v);
+    };
+    pub_binary(BinarySensorType::NIGHT_LIGHT, s.night_light_on);
+    pub_text(TextSensorType::NIGHT_LIGHT_MODE, s.night_light_cycle ? "Color Cycle" : "Fixed Color");
+    std::string color = "Cycling";
+    if (!s.night_light_cycle) {
+      const char *name = night_light_color_name(s.night_light_r, s.night_light_g, s.night_light_b);
+      color = str_sprintf("%s (#%02X%02X%02X)", name != nullptr ? name : "Unknown", s.night_light_r,
+                          s.night_light_g, s.night_light_b);
+    }
+    pub_text(TextSensorType::NIGHT_LIGHT_COLOR, color);
+  }
 }
 
 }  // namespace levoit_humidifier

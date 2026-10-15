@@ -84,11 +84,20 @@ binary_sensor:
   - platform: levoit_humidifier
     type: error
     name: Error
+  - platform: levoit_humidifier
+    type: night_light
+    name: Night light
 
 text_sensor:
   - platform: levoit_humidifier
     type: mcu_version
     name: Firmware
+  - platform: levoit_humidifier
+    type: night_light_mode
+    name: Night light mode
+  - platform: levoit_humidifier
+    type: night_light_color
+    name: Night light color
 
 button:
   - platform: levoit_humidifier

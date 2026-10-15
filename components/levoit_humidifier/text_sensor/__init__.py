@@ -11,6 +11,16 @@ TYPES = {
         TextSensorType.MCU_VERSION,
         {CONF_ICON: "mdi:chip", CONF_ENTITY_CATEGORY: ENTITY_CATEGORY_DIAGNOSTIC},
     ),
+    # night light: "Color Cycle" or "Fixed Color"
+    "night_light_mode": (
+        TextSensorType.NIGHT_LIGHT_MODE,
+        {CONF_ICON: "mdi:looks"},
+    ),
+    # night light: "Orange (#D25000)", "Cycling", or "Unknown (#rrggbb)"
+    "night_light_color": (
+        TextSensorType.NIGHT_LIGHT_COLOR,
+        {CONF_ICON: "mdi:palette"},
+    ),
 }
 
 CONFIG_SCHEMA = typed_schema(text_sensor.text_sensor_schema(), TYPES)

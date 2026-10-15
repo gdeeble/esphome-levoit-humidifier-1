@@ -47,6 +47,11 @@ TYPES = {
         BinarySensorType.CLEAN_REMINDER,
         {CONF_DEVICE_CLASS: DEVICE_CLASS_PROBLEM, CONF_ICON: "mdi:spray-bottle"},
     ),
+    # night light on (US model with the 7-colour light), read-only until the set command is known
+    "night_light": (
+        BinarySensorType.NIGHT_LIGHT,
+        {CONF_ICON: "mdi:lightbulb-night"},
+    ),
 }
 
 CONFIG_SCHEMA = typed_schema(binary_sensor.binary_sensor_schema(), TYPES)
