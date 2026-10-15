@@ -205,12 +205,29 @@ static void test_night_light() {
   CHECK(!s.has_night_light);
 }
 
+static void test_raw_command() {
+  uint16_t cmd = 0;
+  Bytes data;
+  CHECK(parse_raw_command("A003 01 01 D2 50 00", cmd, data));
+  CHECK(cmd == 0xA003 && data == Bytes({0x01, 0x01, 0xD2, 0x50, 0x00}));
+  CHECK(parse_raw_command("0x40c0", cmd, data));
+  CHECK(cmd == 0x40C0 && data.empty());
+  CHECK(parse_raw_command("a1:05:64", cmd, data));
+  CHECK(cmd == 0xA105 && data == Bytes({0x64}));
+  CHECK(!parse_raw_command("A0", cmd, data));
+  CHECK(!parse_raw_command("A003 1", cmd, data));
+  CHECK(!parse_raw_command("A003 zz", cmd, data));
+  // goes on the wire low byte first, like the known commands
+  CHECK(encode_frame(0x22, 1, cmd, data)[7] == 0x05 && encode_frame(0x22, 1, cmd, data)[8] == 0xA1);
+}
+
 int main() {
   test_encode();
   test_parse_ack();
   test_status_variants();
   test_parse_errors();
   test_night_light();
+  test_raw_command();
   if (failures != 0) {
     std::printf("%d check(s) failed\n", failures);
     return 1;

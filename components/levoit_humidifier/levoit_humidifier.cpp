@@ -60,6 +60,7 @@ void LevoitHumidifier::loop() {
     } else {
       ESP_LOGW(TAG, "MCU did not ACK command 0x%04X, dropping it", this->in_flight_.cmd);
       this->awaiting_ack_ = false;
+      this->in_flight_raw_ = false;
     }
   }
 
@@ -126,6 +127,23 @@ void LevoitHumidifier::publish_timer_() {
 void LevoitHumidifier::reset_clean_reminder() {
   this->queue_command_(CMD_CLEAN_RESET, {0});
   this->queue_command_(CMD_QUERY_STATUS, {});
+}
+
+void LevoitHumidifier::send_raw(uint16_t cmd, const std::vector<uint8_t> &data) {
+  ESP_LOGI(TAG, "Raw command 0x%04X [%s]", cmd, format_hex_pretty(data).c_str());
+  this->raw_pending_.push_back(cmd);
+  this->queue_command_(cmd, data);
+}
+
+bool LevoitHumidifier::send_raw(const std::string &text) {
+  uint16_t cmd;
+  std::vector<uint8_t> data;
+  if (!parse_raw_command(text, cmd, data)) {
+    ESP_LOGW(TAG, "Raw command '%s' not understood, expected e.g. 'A003 01 01 D2 50 00'", text.c_str());
+    return false;
+  }
+  this->send_raw(cmd, data);
+  return true;
 }
 
 void LevoitHumidifier::handle_button_(uint16_t cmd, uint8_t value) {
@@ -398,6 +416,10 @@ void LevoitHumidifier::send_next_() {
     return;
   this->in_flight_ = std::move(this->queue_.front());
   this->queue_.pop_front();
+  auto raw = std::find(this->raw_pending_.begin(), this->raw_pending_.end(), this->in_flight_.cmd);
+  this->in_flight_raw_ = raw != this->raw_pending_.end();
+  if (this->in_flight_raw_)
+    this->raw_pending_.erase(raw);
   this->tx_seq_++;
   this->write_frame_(CTRL_VERSION | CTRL_WANT_ACK, this->tx_seq_, this->in_flight_.cmd, this->in_flight_.data);
   this->awaiting_ack_ = true;
@@ -446,7 +468,13 @@ void LevoitHumidifier::handle_frame_(const Frame &frame) {
     if (!this->awaiting_ack_ || frame.seq != this->tx_seq_)
       return;
     this->awaiting_ack_ = false;
-    if (frame.is_error()) {
+    if (this->in_flight_raw_) {
+      // for probing: the full answer, also when it is an error
+      ESP_LOGI(TAG, "Raw 0x%04X answered: ctrl=0x%02X%s err=0x%02X data=[%s]", cmd, frame.ctrl,
+               frame.is_error() ? " (ERROR)" : "", frame.err(),
+               format_hex_pretty(frame.data(), frame.data_len()).c_str());
+      this->in_flight_raw_ = false;
+    } else if (frame.is_error()) {
       ESP_LOGW(TAG, "MCU rejected command 0x%04X, error 0x%02X", cmd, frame.err());
     }
     if (cmd == CMD_QUERY_STATUS) {

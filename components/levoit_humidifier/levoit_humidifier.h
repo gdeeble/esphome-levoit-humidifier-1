@@ -72,6 +72,12 @@ class LevoitHumidifier : public PollingComponent, public uart::UARTDevice {
   void set_timer(uint16_t minutes);
   void reset_clean_reminder();
 
+  // Send any opcode, for finding unknown commands (the night light). The MCU's answer is
+  // logged at INFO, followed by a status read-back. Careful: some opcodes are factory
+  // functions (0xD0xx / 0xD1xx). Returns false when the text does not parse.
+  void send_raw(uint16_t cmd, const std::vector<uint8_t> &data);
+  bool send_raw(const std::string &text);
+
  protected:
   struct Command {
     uint16_t cmd;
@@ -114,6 +120,8 @@ class LevoitHumidifier : public PollingComponent, public uart::UARTDevice {
   uint8_t tx_seq_{0};
   uint32_t sent_at_{0};
   uint8_t retries_{0};
+  bool in_flight_raw_{false};
+  std::vector<uint16_t> raw_pending_;  // opcodes queued through send_raw
 
   protocol::FrameParser parser_;
   uint32_t last_rx_{0};

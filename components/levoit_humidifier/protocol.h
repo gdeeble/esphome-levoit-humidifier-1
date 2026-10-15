@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace esphome {
@@ -204,6 +205,35 @@ inline const char *night_light_color_name(uint8_t r, uint8_t g, uint8_t b) {
       return c.name;
   }
   return nullptr;
+}
+
+// ---- raw commands, for finding unknown opcodes ----
+
+// "A003 01 01 D2 50 00" -> cmd 0xA003, data {01, 01, D2, 50, 00}. The opcode is written as
+// a number (it goes on the wire low byte first); spaces, ':' and '-' separate bytes.
+inline bool parse_raw_command(const std::string &text, uint16_t &cmd, std::vector<uint8_t> &data) {
+  std::vector<uint8_t> nibbles;
+  for (char c : text) {
+    if (c == ' ' || c == ':' || c == '-' || c == ',')
+      continue;
+    if (c >= '0' && c <= '9')
+      nibbles.push_back(c - '0');
+    else if (c >= 'a' && c <= 'f')
+      nibbles.push_back(c - 'a' + 10);
+    else if (c >= 'A' && c <= 'F')
+      nibbles.push_back(c - 'A' + 10);
+    else if (c == 'x' && nibbles.size() == 1 && nibbles[0] == 0)
+      nibbles.clear();  // "0x" prefix
+    else
+      return false;
+  }
+  if (nibbles.size() < 4 || nibbles.size() % 2 != 0)
+    return false;
+  cmd = (nibbles[0] << 12) | (nibbles[1] << 8) | (nibbles[2] << 4) | nibbles[3];
+  data.clear();
+  for (size_t i = 4; i < nibbles.size(); i += 2)
+    data.push_back((nibbles[i] << 4) | nibbles[i + 1]);
+  return true;
 }
 
 // ---- command data ----
