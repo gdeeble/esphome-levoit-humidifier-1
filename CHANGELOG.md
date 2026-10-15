@@ -3,6 +3,18 @@
 Versions follow [semantic versioning](https://semver.org). While the version starts with `0.`,
 any release may change entities or options; check this file before updating.
 
+## Unreleased (night-light branch, gdeeble fork)
+
+### Added
+- Read-only night light (US 7-colour model): `binary_sensor` type `night_light`,
+  `text_sensor` types `night_light_mode` and `night_light_color` (status bytes 15-19).
+- `send_raw()` for probing unknown opcodes, e.g. from a template `text`:
+  `id(humidifier).send_raw(x);` with `x` = `"A003 01 01 D2 50 00"`. The MCU's answer is
+  logged at INFO.
+
+### Still to do
+- Find the night light set command, then a `light` entity (RGB + colour cycle effect).
+
 ## v0.1.1
 
 ### Fixed
