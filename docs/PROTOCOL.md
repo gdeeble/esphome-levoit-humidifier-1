@@ -66,6 +66,10 @@ len      < 0x5DD
 | 0x4080 | set_auto_mode | `[target, target-5, target+5, 2, 1, 1]` |
 | 0x40C0 | query_mcu_status | none → ACK carries status block |
 | 0x40C3 | set_container_clean | `[on]` |
+| 0x4081 | found by scan: sets the mode? `[1,1,…]` gave manual / mist 1 | [infer] |
+| 0x4082 | found by scan: exists, rejected `[1,1,D2,50,00]` (err 0x14) | [infer: Classic 300S uses it for a humidity mode] |
+| 0x40C2 | found by scan: ACKed, no visible effect | |
+| 0x40C5 | found by scan: **overrides the reported humidity** with `data[0]` until power cycle - do not send | |
 | 0xD004 | production_progress | 3 bytes (factory) |
 | 0xD005 | production_result | 2 bytes (factory) |
 | 0xD007 | uart_test | (factory) |
@@ -190,3 +194,5 @@ thing to try.
 | 2026-10-15 | 0xA003 with `[1,1,D2,50,00]`, `[0,1,D2,50,00]`, `[1,0,FF,FF,FF]`, `[1,64]` | no answer at all (3 resends each) |
 | 2026-10-15 | control: 0xA26A `[0]` and `[0,0]` | both ACKed: the MCU ignores data length, and stays silent for opcodes it has no handler for |
 | 2026-10-15 | scan 0xA100–0xA1FF, data `[1,1,D2,50,00]` | no ACKs besides the known 0xA105 / 0xA129 (skipped). Scan had no positive control yet |
+| 2026-10-15 | scan 0xA000–0xA5FF, same data | night light came on roughly 120 opcodes in (around 0xA060–0xA090); log not kept, narrowing down |
+| 2026-10-15 | scan 0x4000–0x40FF, same data, control OK | ACKed: **0x4081** (mode went to manual / Low), **0x4082** (error flag, err 0x14), **0x40C2** (no visible effect), **0x40C5** (reported humidity became 1 %, i.e. `data[0]`; held in MCU RAM, a power cycle restored the real 55 %). Confirmed 0x40C5 alone by sending it separately. All four are now skipped by scans |

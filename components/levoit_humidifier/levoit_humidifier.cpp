@@ -152,6 +152,11 @@ static bool is_known_opcode(uint16_t cmd) {
     case CMD_SET_MANUAL_LEVEL:
     case CMD_SET_TIMER_ICON:
     case CMD_SET_AUTO_STOP:
+    // found by scanning (docs/PROTOCOL.md, search log), skipped so a scan cannot repeat them
+    case 0x4081:  // changed the mode (to manual / Low with data 01 01)
+    case 0x4082:  // exists, rejected [1,1,D2,50,00] with error 0x14
+    case 0x40C2:  // ACKed, effect unknown
+    case 0x40C5:  // overrides the reported humidity (data[0] -> 1 %), until a power cycle
       return true;
     default:
       return false;
