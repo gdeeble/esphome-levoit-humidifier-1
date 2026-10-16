@@ -197,3 +197,8 @@ thing to try.
 | 2026-10-15 | scan 0xA000–0xA5FF, same data | night light came on roughly 120 opcodes in (around 0xA060–0xA090); log not kept, narrowing down |
 | 2026-10-15 | scan 0x4000–0x40FF, same data, control OK | ACKed: **0x4081** (mode went to manual / Low), **0x4082** (error flag, err 0x14), **0x40C2** (the night light - see below), **0x40C5** (reported humidity became 1 %, i.e. `data[0]`; held in MCU RAM, a power cycle restored the real 55 %). Confirmed 0x40C5 alone by sending it separately. All four are now skipped by scans |
 | 2026-10-15 | 0x40C2 `[1]` on its own, light off before | **night light turned on - 0x40C2 is the night light.** The "around 120 opcodes in" sighting was this 0x40xx scan (0x40C2 is ~190 in, close enough by eye), not the A0xx sweep. The scan's `[1,1,D2,50,00]` left it in colour cycle, not fixed orange, so the layout is not simply the status bytes |
+| 2026-10-15 | 0x40C2 `[0]` | off |
+| 2026-10-15 | 0x40C2 `[1,0,D2,50,00]` | on, colour cycle |
+| 2026-10-15 | 0x40C2 `[1,1]` / `[1,0]` | fixed colour / colour cycle - **byte 1 = mode, same values as status byte 16** |
+| 2026-10-15 | 0x40C2 `[1,64,1,D2,50,00]` (6 bytes) | ACKed, no change - wrong length ignored? |
+| 2026-10-15 | 0x40C2 `[1,2,D2,50,00]` | ACKed, no change - mode 2 invalid |
