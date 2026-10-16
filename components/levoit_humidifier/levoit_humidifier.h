@@ -2,6 +2,7 @@
 
 #include <array>
 #include <deque>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -72,6 +73,16 @@ class LevoitHumidifier : public PollingComponent, public uart::UARTDevice {
   void set_timer(uint16_t minutes);
   void reset_clean_reminder();
 
+  // Night light (US model): off, colour cycle, or a fixed colour (any RGB). Skipped when the
+  // status already shows that state and no night light command is pending.
+  void set_night_light(bool on, bool cycle, uint8_t r, uint8_t g, uint8_t b);
+  // called with every status block that carries the night light (the light / preset select)
+  void add_night_light_listener(std::function<void(const protocol::Status &)> &&f) {
+    this->night_light_listeners_.push_back(std::move(f));
+  }
+  bool has_status() const { return this->have_status_; }
+  const protocol::Status &status() const { return this->status_; }
+
   // Send any opcode, for finding unknown commands (the night light). The MCU's answer is
   // logged at INFO, followed by a status read-back. Careful: some opcodes are factory
   // functions (0xD0xx / 0xD1xx). Returns false when the text does not parse.
@@ -119,6 +130,9 @@ class LevoitHumidifier : public PollingComponent, public uart::UARTDevice {
   void send_auto_mode_();
   void cancel_timer_();
   void publish_timer_();
+
+  bool pending_(uint16_t cmd) const;
+  std::vector<std::function<void(const protocol::Status &)>> night_light_listeners_;
 
   std::deque<Command> queue_;
   Command in_flight_{};

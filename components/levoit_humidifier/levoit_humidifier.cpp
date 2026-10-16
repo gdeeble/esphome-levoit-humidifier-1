@@ -133,6 +133,25 @@ void LevoitHumidifier::reset_clean_reminder() {
   this->queue_command_(CMD_QUERY_STATUS, {});
 }
 
+bool LevoitHumidifier::pending_(uint16_t cmd) const {
+  if (this->awaiting_ack_ && this->in_flight_.cmd == cmd)
+    return true;
+  for (const auto &c : this->queue_) {
+    if (c.cmd == cmd)
+      return true;
+  }
+  return false;
+}
+
+void LevoitHumidifier::set_night_light(bool on, bool cycle, uint8_t r, uint8_t g, uint8_t b) {
+  // an echo of the status we just published, or no change: nothing to send
+  if (this->have_status_ && !this->pending_(CMD_SET_NIGHT_LIGHT) &&
+      night_light_matches(this->status_, on, cycle, r, g, b))
+    return;
+  ESP_LOGD(TAG, "Night light: %s", !on ? "off" : cycle ? "colour cycle" : str_sprintf("#%02X%02X%02X", r, g, b).c_str());
+  this->queue_command_(CMD_SET_NIGHT_LIGHT, night_light_data(on, cycle, r, g, b));
+}
+
 void LevoitHumidifier::send_raw(uint16_t cmd, const std::vector<uint8_t> &data) {
   ESP_LOGI(TAG, "Raw command 0x%04X [%s]", cmd, format_hex_pretty(data).c_str());
   this->queue_command_(cmd, data);
@@ -707,6 +726,8 @@ void LevoitHumidifier::publish_status_(const Status &s, bool first) {
                           s.night_light_g, s.night_light_b);
     }
     pub_text(TextSensorType::NIGHT_LIGHT_COLOR, color);
+    for (auto &f : this->night_light_listeners_)
+      f(s);
   }
 }
 
