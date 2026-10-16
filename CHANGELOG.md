@@ -3,27 +3,25 @@
 Versions follow [semantic versioning](https://semver.org). While the version starts with `0.`,
 any release may change entities or options; check this file before updating.
 
-## Unreleased (night-light branch, gdeeble fork)
+## v0.2.0 — night light (gdeeble fork, 2026-10-16)
+
+Tested on a US Dual 200S (7-colour night light), MCU firmware 2.0.02.
 
 ### Added
-- Read-only night light (US 7-colour model): `binary_sensor` type `night_light`,
-  `text_sensor` types `night_light_mode` and `night_light_color` (status bytes 15-19).
-- `send_raw()` for probing unknown opcodes, e.g. from a template `text`:
-  `id(humidifier).send_raw(x);` with `x` = `"A003 01 01 D2 50 00"`. The MCU's answer is
-  logged at INFO.
-
 - Night light control, set command 0x40C2 (found by scanning, see docs/PROTOCOL.md):
   - `light` platform: RGB + brightness with a `levoit_color_cycle` effect; follows the
-    button on the device and never writes before it has synced to the first status.
+    button on the device and never writes before it has synced to the first status, so a
+    reboot leaves the light as it is.
   - `select` type `night_light_preset`: Off, Color Cycle, the front-panel colours and your
     own `presets:`, plus Custom for any other colour (`off_option`, `color_cycle_option`,
     `front_panel_presets` to trim the list).
-
-### Fixed
-- Choosing a colour (or Color Cycle) while the night light is off turned it on in its
-  previous colour: from off the MCU only powers up and ignores the rest. The hub now sends
-  the command twice in that case, power on then colour, and holds the night light status
-  listeners until both are ACKed so a stale status cannot queue the old colour back.
+  - From off the MCU only powers the light up in its last colour and mode, so the hub sends
+    a colour change from off twice (power on, then the colour).
+- Read-only night light: `binary_sensor` type `night_light`, `text_sensor` types
+  `night_light_mode` and `night_light_color` (status bytes 15-19).
+- For protocol work: `send_raw()` sends any opcode, e.g. from a template `text`
+  (`id(humidifier).send_raw(x);` with `x` = `"A003 01 01 D2 50 00"`), and `scan_opcodes()`
+  tries a range of opcodes, skipping known ones. The MCU's answers are logged at INFO.
 
 ## v0.1.1
 
