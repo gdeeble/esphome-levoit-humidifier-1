@@ -173,6 +173,11 @@ on the device steps through:
 | Aqua | 01 | 01 | 14 E6 B4 |
 | Orange | 01 | 01 | D2 50 00 |
 
+Confirmed on hardware 2026-10-15 with the night-light branch (two full button cycles,
+humidifier off, tank in): every step decodes as above, and Off only clears byte 15 (the
+tank flag in an earlier capture was unrelated). The night light works while the
+humidifier itself is off.
+
 The set command is not known yet. Best guess: the Classic 300S sets its (single-colour)
 night light with 0xA003 `[1, brightness%]`, and it shares the A0xx/A1xx/A2xx opcode family
 with this model, so 0xA003 with `[on, mode, r, g, b]` (the status layout) is the first
