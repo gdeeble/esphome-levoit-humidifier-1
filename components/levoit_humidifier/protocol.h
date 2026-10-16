@@ -246,6 +246,30 @@ inline std::vector<uint8_t> auto_mode_data(uint8_t target) {
 // manual mode at a mist level (1-2)
 inline std::vector<uint8_t> manual_level_data(uint8_t level) { return {0, 1, level}; }
 
+// set_night_light (0x40C2) data, as confirmed on hardware: [0] = off, [1, 0] = colour
+// cycle, [1, 1, r, g, b] = fixed colour (any RGB value, not only the button colours)
+inline std::vector<uint8_t> night_light_data(bool on, bool cycle, uint8_t r, uint8_t g, uint8_t b) {
+  if (!on)
+    return {0};
+  if (cycle)
+    return {1, NIGHT_LIGHT_CYCLE};
+  return {1, 1, r, g, b};
+}
+
+// true when the status already shows this night light state (RGB within +-1 for rounding)
+inline bool night_light_matches(const Status &s, bool on, bool cycle, uint8_t r, uint8_t g, uint8_t b) {
+  if (!s.has_night_light || s.night_light_on != on)
+    return false;
+  if (!on)
+    return true;
+  if (s.night_light_cycle != cycle)
+    return false;
+  if (cycle)
+    return true;
+  auto near = [](uint8_t a, uint8_t b) { return (a > b ? a - b : b - a) <= 1; };
+  return near(s.night_light_r, r) && near(s.night_light_g, g) && near(s.night_light_b, b);
+}
+
 // set_wifi_led data: [mode, on_ms u16, off_ms u16, repeat], values from the stock LED table
 inline std::vector<uint8_t> wifi_led_on_data() { return {1, 125, 0, 125, 0, 0}; }
 inline std::vector<uint8_t> wifi_led_blink_data() { return {2, 0xF4, 0x01, 0xF4, 0x01, 0}; }  // 500 ms

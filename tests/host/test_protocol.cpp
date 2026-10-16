@@ -205,6 +205,32 @@ static void test_night_light() {
   CHECK(!s.has_night_light);
 }
 
+static void test_night_light_command() {
+  // the payloads confirmed on hardware
+  CHECK(night_light_data(false, false, 1, 2, 3) == Bytes({0}));
+  CHECK(night_light_data(true, true, 1, 2, 3) == Bytes({1, 0}));
+  CHECK(night_light_data(true, false, 0xFF, 0x00, 0x00) == Bytes({1, 1, 0xFF, 0x00, 0x00}));
+  CHECK(encode_frame(0x22, 1, 0x40C2, {0}) ==
+        Bytes({0xA5, 0x22, 0x01, 0x05, 0x00, 0x2F, 0x01, 0xC2, 0x40, 0x00, 0x00}));
+
+  Status s;
+  s.has_night_light = true;
+  s.night_light_on = true;
+  s.night_light_cycle = false;
+  s.night_light_r = 0xD2;
+  s.night_light_g = 0x50;
+  s.night_light_b = 0x00;
+  CHECK(night_light_matches(s, true, false, 0xD2, 0x50, 0x00));
+  CHECK(night_light_matches(s, true, false, 0xD3, 0x4F, 0x01));  // rounding
+  CHECK(!night_light_matches(s, true, false, 0xD2, 0x60, 0x00));
+  CHECK(!night_light_matches(s, true, true, 0xD2, 0x50, 0x00));
+  CHECK(!night_light_matches(s, false, false, 0, 0, 0));
+  s.night_light_on = false;
+  CHECK(night_light_matches(s, false, true, 1, 2, 3));  // off is off, whatever the colour
+  s.has_night_light = false;
+  CHECK(!night_light_matches(s, false, false, 0, 0, 0));
+}
+
 static void test_raw_command() {
   uint16_t cmd = 0;
   Bytes data;
@@ -227,6 +253,7 @@ int main() {
   test_status_variants();
   test_parse_errors();
   test_night_light();
+  test_night_light_command();
   test_raw_command();
   if (failures != 0) {
     std::printf("%d check(s) failed\n", failures);

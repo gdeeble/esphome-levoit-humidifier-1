@@ -68,7 +68,7 @@ len      < 0x5DD
 | 0x40C3 | set_container_clean | `[on]` |
 | 0x4081 | found by scan: sets the mode? `[1,1,…]` gave manual / mist 1 | [infer] |
 | 0x4082 | found by scan: exists, rejected `[1,1,D2,50,00]` (err 0x14) | [infer: Classic 300S uses it for a humidity mode] |
-| 0x40C2 | **set_night_light** (found by scan): `[1]` turns it on; rest of the layout being worked out | |
+| 0x40C2 | **set_night_light** (found by scan) | `[0]` off · `[1, 0]` colour cycle · `[1, 1, r, g, b]` fixed colour - **any RGB**, not only the button colours |
 | 0x40C5 | found by scan: **overrides the reported humidity** with `data[0]` until power cycle - do not send | |
 | 0xD004 | production_progress | 3 bytes (factory) |
 | 0xD005 | production_result | 2 bytes (factory) |
@@ -182,7 +182,7 @@ humidifier off, tank in): every step decodes as above, and Off only clears byte 
 tank flag in an earlier capture was unrelated). The night light works while the
 humidifier itself is off.
 
-The set command is not known yet. Best guess: the Classic 300S sets its (single-colour)
+~~The set command is not known yet.~~ Solved: 0xA003 was a dead end; 0x40C2 (found by scanning) is the night light, layout in the command table. Original guess: the Classic 300S sets its (single-colour)
 night light with 0xA003 `[1, brightness%]`, and it shares the A0xx/A1xx/A2xx opcode family
 with this model, so 0xA003 with `[on, mode, r, g, b]` (the status layout) is the first
 thing to try.
@@ -202,3 +202,4 @@ thing to try.
 | 2026-10-15 | 0x40C2 `[1,1]` / `[1,0]` | fixed colour / colour cycle - **byte 1 = mode, same values as status byte 16** |
 | 2026-10-15 | 0x40C2 `[1,64,1,D2,50,00]` (6 bytes) | ACKed, no change - wrong length ignored? |
 | 2026-10-15 | 0x40C2 `[1,2,D2,50,00]` | ACKed, no change - mode 2 invalid |
+| 2026-10-15 | 0x40C2 `[1,1,D2,50,00]`, `[1,1,14,E6,B4]`, `[1,1,FF,00,00]`, `[1,1,00,FF,00]` | orange, aqua, pure red, pure green - **full RGB works**. Layout solved |
