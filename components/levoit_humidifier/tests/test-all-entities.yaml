@@ -99,6 +99,10 @@ text_sensor:
     type: night_light_color
     name: Night light color
 
+light:
+  - platform: levoit_humidifier
+    name: Night light
+
 button:
   - platform: levoit_humidifier
     type: reset_clean_reminder
