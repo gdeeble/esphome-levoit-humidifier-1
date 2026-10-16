@@ -76,12 +76,18 @@ class LevoitHumidifier : public PollingComponent, public uart::UARTDevice {
   // logged at INFO, followed by a status read-back. Careful: some opcodes are factory
   // functions (0xD0xx / 0xD1xx). Returns false when the text does not parse.
   void send_raw(uint16_t cmd, const std::vector<uint8_t> &data);
+  // Text form: "A003 01 01 D2 50 00", or "SCAN A000 A0FF [data]" to send every opcode in
+  // the range once (known ones and 0xD0xx/0xD1xx skipped) and log which ones the MCU ACKs.
+  // The MCU ignores opcodes it does not know, so an ACK means it has a handler.
   bool send_raw(const std::string &text);
+  void scan_opcodes(uint16_t first, uint16_t last, const std::vector<uint8_t> &data);
 
  protected:
   struct Command {
     uint16_t cmd;
     std::vector<uint8_t> data;
+    bool raw{false};   // from send_raw: log the MCU's whole answer
+    bool scan{false};  // from an opcode scan: no resend, short timeout
   };
 
   // Wi-Fi icon on the humidifier display, driven like the stock firmware does
@@ -120,8 +126,9 @@ class LevoitHumidifier : public PollingComponent, public uart::UARTDevice {
   uint8_t tx_seq_{0};
   uint32_t sent_at_{0};
   uint8_t retries_{0};
-  bool in_flight_raw_{false};
-  std::vector<uint16_t> raw_pending_;  // opcodes queued through send_raw
+  size_t scan_left_{0};
+  std::vector<uint16_t> scan_hits_;
+  void scan_done_one_(bool acked, uint16_t cmd, uint8_t ctrl, uint8_t err);
 
   protocol::FrameParser parser_;
   uint32_t last_rx_{0};

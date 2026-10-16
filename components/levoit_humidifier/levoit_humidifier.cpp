@@ -27,6 +27,7 @@ using namespace protocol;
 static const char *const TAG = "levoit_humidifier";
 
 static const uint32_t ACK_TIMEOUT_MS = 1000;
+static const uint32_t SCAN_ACK_TIMEOUT_MS = 400;
 static const uint8_t MAX_RETRIES = 3;
 static const uint32_t RX_GAP_MS = 100;
 
@@ -51,8 +52,12 @@ void LevoitHumidifier::update() {
 void LevoitHumidifier::loop() {
   this->read_uart_();
 
-  if (this->awaiting_ack_ && millis() - this->sent_at_ > ACK_TIMEOUT_MS) {
-    if (this->retries_ < MAX_RETRIES) {
+  uint32_t timeout = this->in_flight_.scan ? SCAN_ACK_TIMEOUT_MS : ACK_TIMEOUT_MS;
+  if (this->awaiting_ack_ && millis() - this->sent_at_ > timeout) {
+    if (this->in_flight_.scan) {
+      this->awaiting_ack_ = false;
+      this->scan_done_one_(false, this->in_flight_.cmd, 0, 0);
+    } else if (this->retries_ < MAX_RETRIES) {
       this->retries_++;
       ESP_LOGD(TAG, "No ACK for 0x%04X, resending (%u)", this->in_flight_.cmd, this->retries_);
       this->write_frame_(CTRL_VERSION | CTRL_WANT_ACK, this->tx_seq_, this->in_flight_.cmd, this->in_flight_.data);
@@ -60,7 +65,6 @@ void LevoitHumidifier::loop() {
     } else {
       ESP_LOGW(TAG, "MCU did not ACK command 0x%04X, dropping it", this->in_flight_.cmd);
       this->awaiting_ack_ = false;
-      this->in_flight_raw_ = false;
     }
   }
 
@@ -131,13 +135,86 @@ void LevoitHumidifier::reset_clean_reminder() {
 
 void LevoitHumidifier::send_raw(uint16_t cmd, const std::vector<uint8_t> &data) {
   ESP_LOGI(TAG, "Raw command 0x%04X [%s]", cmd, format_hex_pretty(data).c_str());
-  this->raw_pending_.push_back(cmd);
   this->queue_command_(cmd, data);
+  this->queue_.back().raw = true;
+}
+
+static bool is_known_opcode(uint16_t cmd) {
+  switch (cmd) {
+    case CMD_SET_AUTO_MODE:
+    case CMD_QUERY_STATUS:
+    case CMD_STATUS_REPORT:
+    case CMD_CLEAN_RESET:
+    case 0x40C3:  // set_container_clean
+    case CMD_SET_POWER:
+    case CMD_SET_DISPLAY:
+    case CMD_SET_WIFI_LED:
+    case CMD_SET_MANUAL_LEVEL:
+    case CMD_SET_TIMER_ICON:
+    case CMD_SET_AUTO_STOP:
+      return true;
+    default:
+      return false;
+  }
+}
+
+void LevoitHumidifier::scan_opcodes(uint16_t first, uint16_t last, const std::vector<uint8_t> &data) {
+  if (this->scan_left_ > 0) {
+    ESP_LOGW(TAG, "Scan already running, %u opcodes left", (unsigned) this->scan_left_);
+    return;
+  }
+  this->scan_hits_.clear();
+  for (uint32_t cmd = first; cmd <= last; cmd++) {
+    uint8_t hi = cmd >> 8;
+    if (is_known_opcode(cmd) || hi == 0xD0 || hi == 0xD1)
+      continue;  // known, or factory test / reboot / pairing
+    this->queue_.push_back(Command{(uint16_t) cmd, data, false, true});
+    this->scan_left_++;
+  }
+  ESP_LOGI(TAG, "Scan 0x%04X-0x%04X with data [%s]: %u opcodes, about %u s", first, last,
+           format_hex_pretty(data).c_str(), (unsigned) this->scan_left_,
+           (unsigned) (this->scan_left_ * SCAN_ACK_TIMEOUT_MS / 1000));
+}
+
+void LevoitHumidifier::scan_done_one_(bool acked, uint16_t cmd, uint8_t ctrl, uint8_t err) {
+  if (acked) {
+    ESP_LOGI(TAG, "Scan: 0x%04X ACKed (ctrl=0x%02X err=0x%02X)", cmd, ctrl, err);
+    this->scan_hits_.push_back(cmd);
+  } else {
+    ESP_LOGV(TAG, "Scan: 0x%04X no answer", cmd);
+  }
+  if (this->scan_left_ > 0 && --this->scan_left_ % 32 == 0 && this->scan_left_ > 0)
+    ESP_LOGI(TAG, "Scan: %u opcodes left", (unsigned) this->scan_left_);
+  if (this->scan_left_ == 0) {
+    std::string hits;
+    for (uint16_t h : this->scan_hits_)
+      hits += str_sprintf(" %04X", h);
+    ESP_LOGI(TAG, "Scan done, %u ACKed:%s", (unsigned) this->scan_hits_.size(),
+             hits.empty() ? " none" : hits.c_str());
+  }
 }
 
 bool LevoitHumidifier::send_raw(const std::string &text) {
   uint16_t cmd;
   std::vector<uint8_t> data;
+  if (text.size() > 5 && (text.compare(0, 5, "SCAN ") == 0 || text.compare(0, 5, "scan ") == 0)) {
+    // "SCAN A000 A0FF 01 02": parse "A000 01 02" for the start + data, then the end opcode
+    std::string rest = text.substr(5);
+    uint16_t last;
+    std::vector<uint8_t> unused;
+    size_t space = rest.find(' ');
+    if (space == std::string::npos || !parse_raw_command(rest.substr(0, space), cmd, unused)) {
+      ESP_LOGW(TAG, "Scan '%s' not understood, expected e.g. 'SCAN A000 A0FF 01'", text.c_str());
+      return false;
+    }
+    std::string tail = rest.substr(space + 1);
+    if (!parse_raw_command(tail, last, data) || last < cmd) {
+      ESP_LOGW(TAG, "Scan '%s' not understood, expected e.g. 'SCAN A000 A0FF 01'", text.c_str());
+      return false;
+    }
+    this->scan_opcodes(cmd, last, data);
+    return true;
+  }
   if (!parse_raw_command(text, cmd, data)) {
     ESP_LOGW(TAG, "Raw command '%s' not understood, expected e.g. 'A003 01 01 D2 50 00'", text.c_str());
     return false;
@@ -416,10 +493,6 @@ void LevoitHumidifier::send_next_() {
     return;
   this->in_flight_ = std::move(this->queue_.front());
   this->queue_.pop_front();
-  auto raw = std::find(this->raw_pending_.begin(), this->raw_pending_.end(), this->in_flight_.cmd);
-  this->in_flight_raw_ = raw != this->raw_pending_.end();
-  if (this->in_flight_raw_)
-    this->raw_pending_.erase(raw);
   this->tx_seq_++;
   this->write_frame_(CTRL_VERSION | CTRL_WANT_ACK, this->tx_seq_, this->in_flight_.cmd, this->in_flight_.data);
   this->awaiting_ack_ = true;
@@ -465,15 +538,20 @@ void LevoitHumidifier::handle_frame_(const Frame &frame) {
   uint16_t cmd = frame.cmd();
 
   if (frame.is_ack()) {
-    if (!this->awaiting_ack_ || frame.seq != this->tx_seq_)
+    if (!this->awaiting_ack_ || frame.seq != this->tx_seq_) {
+      // an ACK after its timeout, e.g. a slow answer during a scan: still worth knowing
+      if (cmd != CMD_QUERY_STATUS)
+        ESP_LOGI(TAG, "Late ACK for 0x%04X (seq %u, ctrl=0x%02X)", cmd, frame.seq, frame.ctrl);
       return;
+    }
     this->awaiting_ack_ = false;
-    if (this->in_flight_raw_) {
+    if (this->in_flight_.scan) {
+      this->scan_done_one_(true, cmd, frame.ctrl, frame.err());
+    } else if (this->in_flight_.raw) {
       // for probing: the full answer, also when it is an error
       ESP_LOGI(TAG, "Raw 0x%04X answered: ctrl=0x%02X%s err=0x%02X data=[%s]", cmd, frame.ctrl,
                frame.is_error() ? " (ERROR)" : "", frame.err(),
                format_hex_pretty(frame.data(), frame.data_len()).c_str());
-      this->in_flight_raw_ = false;
     } else if (frame.is_error()) {
       ESP_LOGW(TAG, "MCU rejected command 0x%04X, error 0x%02X", cmd, frame.err());
     }
