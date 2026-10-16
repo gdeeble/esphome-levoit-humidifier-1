@@ -132,6 +132,7 @@ class LevoitHumidifier : public PollingComponent, public uart::UARTDevice {
   void publish_timer_();
 
   bool pending_(uint16_t cmd) const;
+  bool night_light_will_be_on_() const;
   std::vector<std::function<void(const protocol::Status &)>> night_light_listeners_;
 
   std::deque<Command> queue_;

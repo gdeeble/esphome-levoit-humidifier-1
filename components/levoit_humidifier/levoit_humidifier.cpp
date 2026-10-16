@@ -149,7 +149,27 @@ void LevoitHumidifier::set_night_light(bool on, bool cycle, uint8_t r, uint8_t g
       night_light_matches(this->status_, on, cycle, r, g, b))
     return;
   ESP_LOGD(TAG, "Night light: %s", !on ? "off" : cycle ? "colour cycle" : str_sprintf("#%02X%02X%02X", r, g, b).c_str());
-  this->queue_command_(CMD_SET_NIGHT_LIGHT, night_light_data(on, cycle, r, g, b));
+  // From off, the MCU only powers the light back up in its last colour and mode and ignores
+  // the rest of the data: send it twice, power on first, then the colour / cycle.
+  bool from_off = on && !this->night_light_will_be_on_();
+  std::vector<uint8_t> data = night_light_data(on, cycle, r, g, b);
+  this->queue_command_(CMD_SET_NIGHT_LIGHT, data);
+  if (from_off)
+    this->queue_.push_back(Command{CMD_SET_NIGHT_LIGHT, data});
+}
+
+bool LevoitHumidifier::night_light_will_be_on_() const {
+  // the last night light command not yet ACKed wins, else the last status
+  const Command *last = nullptr;
+  if (this->awaiting_ack_ && this->in_flight_.cmd == CMD_SET_NIGHT_LIGHT)
+    last = &this->in_flight_;
+  for (const auto &c : this->queue_) {
+    if (c.cmd == CMD_SET_NIGHT_LIGHT)
+      last = &c;
+  }
+  if (last != nullptr)
+    return !last->data.empty() && last->data[0] != 0;
+  return this->have_status_ && this->status_.night_light_on;
 }
 
 void LevoitHumidifier::send_raw(uint16_t cmd, const std::vector<uint8_t> &data) {
@@ -174,7 +194,7 @@ static bool is_known_opcode(uint16_t cmd) {
     // found by scanning (docs/PROTOCOL.md, search log), skipped so a scan cannot repeat them
     case 0x4081:  // changed the mode (to manual / Low with data 01 01)
     case 0x4082:  // exists, rejected [1,1,D2,50,00] with error 0x14
-    case 0x40C2:  // the night light (set_night_light, data layout being worked out)
+    case 0x40C2:  // the night light (set_night_light)
     case 0x40C5:  // overrides the reported humidity (data[0] -> 1 %), until a power cycle
       return true;
     default:
@@ -726,8 +746,13 @@ void LevoitHumidifier::publish_status_(const Status &s, bool first) {
                           s.night_light_g, s.night_light_b);
     }
     pub_text(TextSensorType::NIGHT_LIGHT_COLOR, color);
-    for (auto &f : this->night_light_listeners_)
-      f(s);
+    // mid-change (e.g. between the power-on and the colour step) the status is stale: the
+    // light and select would follow it and queue the old colour back. The read-back after
+    // the last ACK brings them up to date.
+    if (!this->pending_(CMD_SET_NIGHT_LIGHT)) {
+      for (auto &f : this->night_light_listeners_)
+        f(s);
+    }
   }
 }
 

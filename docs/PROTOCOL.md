@@ -68,7 +68,7 @@ len      < 0x5DD
 | 0x40C3 | set_container_clean | `[on]` |
 | 0x4081 | found by scan: sets the mode? `[1,1,…]` gave manual / mist 1 | [infer] |
 | 0x4082 | found by scan: exists, rejected `[1,1,D2,50,00]` (err 0x14) | [infer: Classic 300S uses it for a humidity mode] |
-| 0x40C2 | **set_night_light** (found by scan) | `[0]` off · `[1, 0]` colour cycle · `[1, 1, r, g, b]` fixed colour - **any RGB**, not only the button colours |
+| 0x40C2 | **set_night_light** (found by scan) | `[0]` off · `[1, 0]` colour cycle · `[1, 1, r, g, b]` fixed colour - **any RGB**, not only the button colours. **From off, any `[1, ...]` only powers the light up in its last colour and mode** (rest ignored): send it again once on |
 | 0x40C5 | found by scan: **overrides the reported humidity** with `data[0]` until power cycle - do not send | |
 | 0xD004 | production_progress | 3 bytes (factory) |
 | 0xD005 | production_result | 2 bytes (factory) |
@@ -203,3 +203,4 @@ thing to try.
 | 2026-10-15 | 0x40C2 `[1,64,1,D2,50,00]` (6 bytes) | ACKed, no change - wrong length ignored? |
 | 2026-10-15 | 0x40C2 `[1,2,D2,50,00]` | ACKed, no change - mode 2 invalid |
 | 2026-10-15 | 0x40C2 `[1,1,D2,50,00]`, `[1,1,14,E6,B4]`, `[1,1,FF,00,00]`, `[1,1,00,FF,00]` | orange, aqua, pure red, pure green - **full RGB works**. Layout solved |
+| 2026-10-16 | 0x40C2 `[1,1,00,FF,00]` with the light off (purple stored), sent again, then `[0]`, `[1,0]` | first: on in **purple**, green ignored; second: green. From off `[1,0]` came on as fixed green, not cycling - **from off it only powers up**, the hub sends twice |

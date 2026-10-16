@@ -12,8 +12,18 @@ any release may change entities or options; check this file before updating.
   `id(humidifier).send_raw(x);` with `x` = `"A003 01 01 D2 50 00"`. The MCU's answer is
   logged at INFO.
 
-### Still to do
-- Find the night light set command, then a `light` entity (RGB + colour cycle effect).
+- Night light control, set command 0x40C2 (found by scanning, see docs/PROTOCOL.md):
+  - `light` platform: RGB + brightness with a `levoit_color_cycle` effect; follows the
+    button on the device and never writes before it has synced to the first status.
+  - `select` type `night_light_preset`: Off, Color Cycle, the front-panel colours and your
+    own `presets:`, plus Custom for any other colour (`off_option`, `color_cycle_option`,
+    `front_panel_presets` to trim the list).
+
+### Fixed
+- Choosing a colour (or Color Cycle) while the night light is off turned it on in its
+  previous colour: from off the MCU only powers up and ignores the rest. The hub now sends
+  the command twice in that case, power on then colour, and holds the night light status
+  listeners until both are ACKed so a stale status cannot queue the old colour back.
 
 ## v0.1.1
 
