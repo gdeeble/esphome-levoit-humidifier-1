@@ -182,3 +182,11 @@ The set command is not known yet. Best guess: the Classic 300S sets its (single-
 night light with 0xA003 `[1, brightness%]`, and it shares the A0xx/A1xx/A2xx opcode family
 with this model, so 0xA003 with `[on, mode, r, g, b]` (the status layout) is the first
 thing to try.
+
+### Night light set command: search log
+
+| Date | Probe | Result |
+|---|---|---|
+| 2026-10-15 | 0xA003 with `[1,1,D2,50,00]`, `[0,1,D2,50,00]`, `[1,0,FF,FF,FF]`, `[1,64]` | no answer at all (3 resends each) |
+| 2026-10-15 | control: 0xA26A `[0]` and `[0,0]` | both ACKed: the MCU ignores data length, and stays silent for opcodes it has no handler for |
+| 2026-10-15 | scan 0xA100–0xA1FF, data `[1,1,D2,50,00]` | no ACKs besides the known 0xA105 / 0xA129 (skipped). Scan had no positive control yet |
