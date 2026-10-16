@@ -10,7 +10,10 @@ SelectType = levoit_humidifier_ns.enum("SelectType", is_class=True)
 
 CONF_PRESETS = "presets"
 CONF_FRONT_PANEL_PRESETS = "front_panel_presets"
+CONF_OFF_OPTION = "off_option"
+CONF_COLOR_CYCLE_OPTION = "color_cycle_option"
 
+OPTION_OFF = "Off"
 OPTION_COLOR_CYCLE = "Color Cycle"
 OPTION_CUSTOM = "Custom"
 
@@ -29,8 +32,9 @@ FRONT_PANEL_PRESETS = [
 # the same cycle as the button on the device
 TYPES = {
     "mode": (SelectType.MODE, ["Auto", "Low", "High"], {CONF_ICON: "mdi:air-humidifier"}),
-    # night light: Color Cycle, the front-panel colours, your own presets, then Custom
-    # (shown for any other colour, e.g. one picked on the light entity)
+    # night light: Off, Color Cycle, the front-panel colours, your own presets, then Custom
+    # (shown for any other colour, e.g. one picked on the light entity). Off and Color Cycle
+    # can be left out, e.g. for a second select with only your own colours.
     "night_light_preset": (SelectType.NIGHT_LIGHT_PRESET, None, {CONF_ICON: "mdi:palette"}),
 }
 
@@ -58,6 +62,8 @@ _typed = typed_schema(
         {
             cv.Optional(CONF_PRESETS): cv.ensure_list(PRESET_SCHEMA),
             cv.Optional(CONF_FRONT_PANEL_PRESETS): cv.boolean,
+            cv.Optional(CONF_OFF_OPTION): cv.boolean,
+            cv.Optional(CONF_COLOR_CYCLE_OPTION): cv.boolean,
         }
     ),
     TYPES,
@@ -72,18 +78,29 @@ def _presets(config):
     return presets
 
 
+def _options(config, presets):
+    options = []
+    if config.get(CONF_OFF_OPTION, True):
+        options.append(OPTION_OFF)
+    if config.get(CONF_COLOR_CYCLE_OPTION, True):
+        options.append(OPTION_COLOR_CYCLE)
+    return options + [n for n, _ in presets] + [OPTION_CUSTOM]
+
+
 def CONFIG_SCHEMA(config):
     config = _typed(config)
     if config[CONF_TYPE] != "night_light_preset":
-        for key in (CONF_PRESETS, CONF_FRONT_PANEL_PRESETS):
+        for key in (CONF_PRESETS, CONF_FRONT_PANEL_PRESETS, CONF_OFF_OPTION, CONF_COLOR_CYCLE_OPTION):
             if key in config:
                 raise cv.Invalid(f"{key} is only for type: night_light_preset", path=[key])
         return config
-    names = [OPTION_COLOR_CYCLE] + [n for n, _ in _presets(config)] + [OPTION_CUSTOM]
+    names = [OPTION_OFF, OPTION_COLOR_CYCLE] + [n for n, _ in _presets(config)] + [OPTION_CUSTOM]
     seen = set()
     for n in names:
         if n in seen:
-            raise cv.Invalid(f"Preset name '{n}' is used twice (Color Cycle and Custom are taken)", path=[CONF_PRESETS])
+            raise cv.Invalid(
+                f"Preset name '{n}' is used twice (Off, Color Cycle and Custom are taken)", path=[CONF_PRESETS]
+            )
         seen.add(n)
     return config
 
@@ -94,7 +111,7 @@ async def to_code(config):
     presets = []
     if config[CONF_TYPE] == "night_light_preset":
         presets = _presets(config)
-        options = [OPTION_COLOR_CYCLE] + [n for n, _ in presets] + [OPTION_CUSTOM]
+        options = _options(config, presets)
     var = await select.new_select(config, options=options)
     cg.add(var.set_parent(hub))
     cg.add(var.set_type(kind))
@@ -102,6 +119,7 @@ async def to_code(config):
         v = int(color, 16)
         cg.add(var.add_preset((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF))
     if config[CONF_TYPE] == "night_light_preset":
+        cg.add(var.set_extra_options(config.get(CONF_OFF_OPTION, True), config.get(CONF_COLOR_CYCLE_OPTION, True)))
         cg.add(var.follow_night_light())
     else:
         cg.add(hub.register_select(kind, var))

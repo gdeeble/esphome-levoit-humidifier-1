@@ -6,10 +6,13 @@ namespace levoit_humidifier {
 
 void LevoitSelect::control(size_t index) {
   if (this->type_ == SelectType::NIGHT_LIGHT_PRESET) {
-    if (index == 0) {
+    size_t first = this->first_preset_();
+    if (this->has_off_ && index == 0) {
+      this->parent_->set_night_light(false, false, 0, 0, 0);
+    } else if (this->has_cycle_ && index == (size_t) this->has_off_) {
       this->parent_->set_night_light(true, true, 0, 0, 0);
-    } else if (index <= this->presets_.size()) {
-      const auto &c = this->presets_[index - 1];
+    } else if (index >= first && index < first + this->presets_.size()) {
+      const auto &c = this->presets_[index - first];
       this->parent_->set_night_light(true, false, c[0], c[1], c[2]);  // also turns it on
     } else {
       // "Custom" is not a colour: snap back to what the light shows
@@ -34,15 +37,20 @@ void LevoitSelect::follow_night_light() {
 }
 
 void LevoitSelect::on_night_light_(const protocol::Status &s) {
-  // the colour stays known while the light is off, so the select keeps showing it
-  size_t index = this->presets_.size() + 1;  // Custom
-  if (s.night_light_cycle) {
+  size_t first = this->first_preset_();
+  size_t index = first + this->presets_.size();  // Custom
+  if (this->has_off_ && !s.night_light_on) {
     index = 0;
+  } else if (s.night_light_cycle) {
+    // without a Color Cycle option, a cycling light shows as Custom
+    if (this->has_cycle_)
+      index = (size_t) this->has_off_;
   } else {
+    // without an Off option the colour stays shown while the light is off
     for (size_t i = 0; i < this->presets_.size(); i++) {
       const auto &c = this->presets_[i];
       if (c[0] == s.night_light_r && c[1] == s.night_light_g && c[2] == s.night_light_b) {
-        index = i + 1;
+        index = first + i;
         break;
       }
     }

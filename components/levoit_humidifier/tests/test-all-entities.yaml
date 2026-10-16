@@ -48,6 +48,15 @@ select:
         color: "#FF0000"
       - name: Warm White
         color: FFB46B
+  - platform: levoit_humidifier
+    type: night_light_preset
+    name: Night light custom colour
+    front_panel_presets: false
+    off_option: false
+    color_cycle_option: false
+    presets:
+      - name: Night Red
+        color: "#400000"
 
 number:
   - platform: levoit_humidifier
