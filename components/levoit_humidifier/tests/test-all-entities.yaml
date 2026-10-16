@@ -40,6 +40,14 @@ select:
   - platform: levoit_humidifier
     type: mode
     name: Mode
+  - platform: levoit_humidifier
+    type: night_light_preset
+    name: Night light preset
+    presets:
+      - name: Pure Red
+        color: "#FF0000"
+      - name: Warm White
+        color: FFB46B
 
 number:
   - platform: levoit_humidifier

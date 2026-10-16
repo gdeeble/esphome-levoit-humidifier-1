@@ -7,7 +7,7 @@ namespace levoit_humidifier {
 
 enum class SwitchType : uint8_t { POWER, DISPLAY, AUTO_STOP, COUNT };
 enum class NumberType : uint8_t { TARGET_HUMIDITY, MIST_LEVEL, TIMER, COUNT };
-enum class SelectType : uint8_t { MODE, COUNT };
+enum class SelectType : uint8_t { MODE, NIGHT_LIGHT_PRESET, COUNT };
 enum class SensorType : uint8_t { HUMIDITY, TEMPERATURE, COUNT };
 enum class BinarySensorType : uint8_t { WATER_TANK_LIFTED, LOW_WATER, MIST_ACTIVE, AUTO_STOPPED, CLEAN_REMINDER, HUMIDITY_HIGH, FAULT, NIGHT_LIGHT, COUNT };
 enum class TextSensorType : uint8_t { MCU_VERSION, NIGHT_LIGHT_MODE, NIGHT_LIGHT_COLOR, COUNT };
