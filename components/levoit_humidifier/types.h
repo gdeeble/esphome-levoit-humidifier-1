@@ -19,6 +19,8 @@ static const uint16_t CMD_QUERY_STATUS = 0x40C0;
 static const uint16_t CMD_STATUS_REPORT = 0x40C1;
 // ESP -> MCU: reset the tank-cleaning reminder; MCU -> ESP: it was reset on the device
 static const uint16_t CMD_CLEAN_RESET = 0x40C4;
+// ESP -> MCU: night light (US model), found by scanning; [1] = on, rest of the layout TBD
+static const uint16_t CMD_SET_NIGHT_LIGHT = 0x40C2;
 static const uint16_t CMD_SET_POWER = 0xA000;
 static const uint16_t CMD_SET_DISPLAY = 0xA105;
 static const uint16_t CMD_SET_WIFI_LED = 0xA129;
