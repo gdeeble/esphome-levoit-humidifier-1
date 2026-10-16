@@ -128,6 +128,7 @@ class LevoitHumidifier : public PollingComponent, public uart::UARTDevice {
   uint8_t retries_{0};
   size_t scan_left_{0};
   std::vector<uint16_t> scan_hits_;
+  bool scan_control_ok_{false};
   void scan_done_one_(bool acked, uint16_t cmd, uint8_t ctrl, uint8_t err);
 
   protocol::FrameParser parser_;

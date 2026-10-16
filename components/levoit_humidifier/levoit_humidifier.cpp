@@ -27,7 +27,7 @@ using namespace protocol;
 static const char *const TAG = "levoit_humidifier";
 
 static const uint32_t ACK_TIMEOUT_MS = 1000;
-static const uint32_t SCAN_ACK_TIMEOUT_MS = 400;
+static const uint32_t SCAN_ACK_TIMEOUT_MS = 150;  // ACKs take a few ms; later ones log as Late ACK
 static const uint8_t MAX_RETRIES = 3;
 static const uint32_t RX_GAP_MS = 100;
 
@@ -171,13 +171,19 @@ void LevoitHumidifier::scan_opcodes(uint16_t first, uint16_t last, const std::ve
     this->queue_.push_back(Command{(uint16_t) cmd, data, false, true});
     this->scan_left_++;
   }
+  // positive control: the timer icon, re-sent as it is now, must be ACKed or the scan is broken
+  this->queue_.push_back(Command{CMD_SET_TIMER_ICON, {(uint8_t) this->timer_active_}, false, true});
+  this->scan_left_++;
+  this->scan_control_ok_ = false;
   ESP_LOGI(TAG, "Scan 0x%04X-0x%04X with data [%s]: %u opcodes, about %u s", first, last,
            format_hex_pretty(data).c_str(), (unsigned) this->scan_left_,
            (unsigned) (this->scan_left_ * SCAN_ACK_TIMEOUT_MS / 1000));
 }
 
 void LevoitHumidifier::scan_done_one_(bool acked, uint16_t cmd, uint8_t ctrl, uint8_t err) {
-  if (acked) {
+  if (cmd == CMD_SET_TIMER_ICON) {
+    this->scan_control_ok_ = acked;
+  } else if (acked) {
     ESP_LOGI(TAG, "Scan: 0x%04X ACKed (ctrl=0x%02X err=0x%02X)", cmd, ctrl, err);
     this->scan_hits_.push_back(cmd);
   } else {
@@ -189,8 +195,8 @@ void LevoitHumidifier::scan_done_one_(bool acked, uint16_t cmd, uint8_t ctrl, ui
     std::string hits;
     for (uint16_t h : this->scan_hits_)
       hits += str_sprintf(" %04X", h);
-    ESP_LOGI(TAG, "Scan done, %u ACKed:%s", (unsigned) this->scan_hits_.size(),
-             hits.empty() ? " none" : hits.c_str());
+    ESP_LOGI(TAG, "Scan done, %u ACKed:%s (control 0xA26A: %s)", (unsigned) this->scan_hits_.size(),
+             hits.empty() ? " none" : hits.c_str(), this->scan_control_ok_ ? "ACKed, scan OK" : "MISSED, scan unreliable");
   }
 }
 
