@@ -3,7 +3,7 @@
 Versions follow [semantic versioning](https://semver.org). While the version starts with `0.`,
 any release may change entities or options; check this file before updating.
 
-## Unreleased (wifi-icon-status branch)
+## v0.3.0 — Wi-Fi icon status (gdeeble fork, 2026-10-17)
 
 ### Added
 - `wifi_icon: status`: with the humidifier on, the display's Wi-Fi icon is on while Home
