@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -287,10 +288,17 @@ void LevoitHumidifier::handle_button_(uint16_t cmd, uint8_t value) {
 
 bool LevoitHumidifier::api_connected_() const {
 #ifdef USE_API
-  return api::global_api_server != nullptr && api::global_api_server->is_connected_with_state_subscription();
-#else
-  return false;
+  // Home Assistant itself, by its client name: log viewers (esphome logs, the Device
+  // Builder's log window, "ESPHome Logs ...") subscribe to states too
+  if (api::global_api_server == nullptr)
+    return false;
+  for (const auto &client : api::global_api_server->active_clients()) {
+    const char *name = client->get_name();
+    if (client->is_authenticated() && name != nullptr && strncmp(name, "Home Assistant", 14) == 0)
+      return true;
+  }
 #endif
+  return false;
 }
 
 bool LevoitHumidifier::wifi_connected_() const {
@@ -314,9 +322,13 @@ LevoitHumidifier::WifiLed LevoitHumidifier::wanted_wifi_led_() const {
     case WifiIconSource::STATUS:
       if (this->ota_active_)
         return WifiLed::BLINK;
-      // humidifier off: only "on Wi-Fi"; on: on with Home Assistant, slow blink without
+      // humidifier off: dark (the MCU does not show a steady icon then anyway)
+      if (!this->status_.power)
+        return WifiLed::OFF;
+      if (this->api_connected_())
+        return WifiLed::ON;
       if (this->wifi_connected_())
-        return !this->status_.power || this->api_connected_() ? WifiLed::ON : WifiLed::BLINK_SLOW;
+        return WifiLed::BLINK_SLOW;
       break;
     case WifiIconSource::HOME_ASSISTANT:
       if (this->api_connected_())

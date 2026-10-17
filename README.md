@@ -139,7 +139,7 @@ switch:
 | `update_interval` | `5s` | How often the status is polled |
 | `mqtt_humidifier` | `false` | Also announce a Home Assistant humidifier entity over MQTT, see below |
 | `mqtt_discovery_prefix` | `homeassistant` | Discovery prefix for that entity |
-| `wifi_icon` | `wifi` | What lights the Wi-Fi icon: `wifi` (connected to Wi-Fi), `home_assistant` (Home Assistant connected, the closest match to the stock "cloud connected"; needs `api:`) or `status` (humidifier on: on with Home Assistant, slow 1 s blink with Wi-Fi only; humidifier off: on whenever Wi-Fi is connected; fast 0.5 s blink during an OTA update, on or off; needs `api:`). The fallback hotspot blinks fast in every mode. In `wifi` and `home_assistant` mode, like the stock firmware, nothing but "on" is shown while the humidifier is off |
+| `wifi_icon` | `wifi` | What lights the Wi-Fi icon: `wifi` (connected to Wi-Fi), `home_assistant` (Home Assistant connected, the closest match to the stock "cloud connected"; needs `api:`) or `status` (humidifier on: on with Home Assistant, slow 1 s blink with Wi-Fi only; humidifier off: dark; fast 0.5 s blink during an OTA update, on or off; needs `api:`). "Home Assistant connected" means an API client named "Home Assistant ..."; log viewers also subscribe to states and do not count. The fallback hotspot blinks fast in every mode. In `wifi` and `home_assistant` mode, like the stock firmware, nothing but "on" is shown while the humidifier is off |
 
 ## Humidifier entity (optional, MQTT)
 
