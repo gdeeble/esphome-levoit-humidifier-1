@@ -9,16 +9,17 @@ any release may change entities or options; check this file before updating.
 - `wifi_icon: status`: with the humidifier on, the display's Wi-Fi icon is on while Home
   Assistant is connected and blinks slowly (1 s) with Wi-Fi only; with it off, the icon is
   dark (the MCU does not show a steady icon while off). It blinks fast (0.5 s) while an OTA
-  update is written, on or off.
+  update is written, on or off. The MCU does the blinking (0xA129 carries the on/off
+  times), so the icon is only sent when its state changes. The OTA blink is written
+  straight to the UART when the update starts, because the transfer blocks the loop until
+  the reboot.
 
 ### Fixed
 - `wifi_icon: home_assistant` lit the icon for any API client that subscribes to states,
   including `esphome logs` and the Device Builder's log window. It now only counts a client
-  named "Home Assistant ...". The MCU does the blinking (0xA129 carries the on/off times), so the icon is only
-  sent when its state changes. The OTA blink is written straight to the UART when the
-  update starts, because the transfer blocks the loop until the reboot.
+  named "Home Assistant ...".
 
- — night light (gdeeble fork, 2026-10-16)
+## v0.2.0 — night light (gdeeble fork, 2026-10-16)
 
 Tested on a US Dual 200S (7-colour night light), MCU firmware 2.0.02.
 
