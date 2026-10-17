@@ -273,6 +273,7 @@ inline bool night_light_matches(const Status &s, bool on, bool cycle, uint8_t r,
 // set_wifi_led data: [mode, on_ms u16, off_ms u16, repeat], values from the stock LED table
 inline std::vector<uint8_t> wifi_led_on_data() { return {1, 125, 0, 125, 0, 0}; }
 inline std::vector<uint8_t> wifi_led_blink_data() { return {2, 0xF4, 0x01, 0xF4, 0x01, 0}; }  // 500 ms
+inline std::vector<uint8_t> wifi_led_slow_blink_data() { return {2, 0xE8, 0x03, 0xE8, 0x03, 0}; }  // 1 s
 inline std::vector<uint8_t> wifi_led_off_data() { return {0, 75, 0, 75, 0, 0}; }
 
 }  // namespace protocol

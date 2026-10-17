@@ -89,6 +89,7 @@ mode 0 = off, 1 = on, 2 = blink. Stock LED behaviour table (network state → en
 | 6–10 | connecting, IP, server | off |
 | 0xB | cloud connected | on |
 | 0xC | factory reset | blink 125 ms, repeat 10 |
+| - | this component, `wifi_icon: status`, Wi-Fi without Home Assistant | blink 1000/1000 ms (not a stock entry) |
 | 0xD | disconnected / test mode | off |
 
 - Non-connected states are not sent while the humidifier is off; the current state is

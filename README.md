@@ -139,7 +139,7 @@ switch:
 | `update_interval` | `5s` | How often the status is polled |
 | `mqtt_humidifier` | `false` | Also announce a Home Assistant humidifier entity over MQTT, see below |
 | `mqtt_discovery_prefix` | `homeassistant` | Discovery prefix for that entity |
-| `wifi_icon` | `wifi` | What lights the Wi-Fi icon: `wifi` (connected to Wi-Fi) or `home_assistant` (Home Assistant connected, the closest match to the stock "cloud connected"; needs `api:`) |
+| `wifi_icon` | `wifi` | What lights the Wi-Fi icon: `wifi` (connected to Wi-Fi), `home_assistant` (Home Assistant connected, the closest match to the stock "cloud connected"; needs `api:`) or `status` (on with Home Assistant, slow 1 s blink with Wi-Fi only, fast 0.5 s blink during an OTA update; needs `api:`). In every mode the fallback hotspot blinks fast, and like the stock firmware nothing but "on" is shown while the humidifier is off |
 
 ## Humidifier entity (optional, MQTT)
 

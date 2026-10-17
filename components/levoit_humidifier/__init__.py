@@ -1,8 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import uart
+from esphome.components import ota, uart
 import esphome.final_validate as fv
 from esphome.const import CONF_ID, CONF_TYPE
+from esphome.core import CORE
 
 CODEOWNERS = ["@Ahmed-max"]
 DEPENDENCIES = ["uart"]
@@ -35,6 +36,8 @@ WIFI_ICON_SOURCES = {
     "wifi": WifiIconSource.WIFI,
     # closest to the stock firmware, where the icon means "connected to the cloud"
     "home_assistant": WifiIconSource.HOME_ASSISTANT,
+    # on with Home Assistant, slow blink with Wi-Fi only, fast blink during an OTA update
+    "status": WifiIconSource.STATUS,
 }
 
 CONFIG_SCHEMA = (
@@ -63,8 +66,8 @@ def _final_validate_mqtt(config):
 
 
 def _final_validate_wifi_icon(config):
-    if config[CONF_WIFI_ICON] == "home_assistant" and "api" not in fv.full_config.get():
-        raise cv.Invalid(f"{CONF_WIFI_ICON}: home_assistant needs the api: component")
+    if config[CONF_WIFI_ICON] in ("home_assistant", "status") and "api" not in fv.full_config.get():
+        raise cv.Invalid(f"{CONF_WIFI_ICON}: {config[CONF_WIFI_ICON]} needs the api: component")
     return config
 
 
@@ -104,6 +107,8 @@ async def to_code(config):
     # saved settings are keyed per hub, so several humidifiers do not share them
     cg.add(var.set_preference_key(f"levoit_{config[CONF_ID].id}"))
     cg.add(var.set_wifi_icon_source(config[CONF_WIFI_ICON]))
+    if config[CONF_WIFI_ICON] == "status" and "ota" in CORE.config:
+        ota.request_ota_state_listeners()  # fast blink while an update is written
     # with mqtt: present but the entity disabled, the hub removes an earlier announcement
     cg.add(var.set_mqtt_humidifier(config[CONF_MQTT_HUMIDIFIER]))
     cg.add(var.set_mqtt_discovery_prefix(config[CONF_MQTT_DISCOVERY_PREFIX]))

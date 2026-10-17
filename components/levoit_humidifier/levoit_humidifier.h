@@ -16,6 +16,9 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 #include "protocol.h"
 #include "types.h"
@@ -24,12 +27,17 @@ namespace esphome {
 namespace levoit_humidifier {
 
 // What lights the Wi-Fi icon on the display: Wi-Fi alone, or a Home Assistant connection
-// (the closest match to the stock firmware's "cloud connected").
-enum class WifiIconSource : uint8_t { WIFI, HOME_ASSISTANT };
+// (the closest match to the stock firmware's "cloud connected"). STATUS shows all three:
+// on with Home Assistant, slow blink with Wi-Fi only, fast blink during an OTA update.
+enum class WifiIconSource : uint8_t { WIFI, HOME_ASSISTANT, STATUS };
 
 // Talks to the humidifier MCU over the VeSync UART protocol (protocol.h).
 // One command is in flight at a time; it is resent until the MCU ACKs it.
-class LevoitHumidifier : public PollingComponent, public uart::UARTDevice {
+class LevoitHumidifier : public PollingComponent,
+#ifdef USE_OTA_STATE_LISTENER
+                         public ota::OTAGlobalStateListener,  // fast-blinking Wi-Fi icon during an update
+#endif
+                         public uart::UARTDevice {
  public:
   void setup() override;
   void loop() override;
@@ -49,6 +57,9 @@ class LevoitHumidifier : public PollingComponent, public uart::UARTDevice {
   // keys this hub's saved settings, so several humidifiers do not share them
   void set_preference_key(const std::string &key) { this->preference_key_ = key; }
   void set_wifi_icon_source(WifiIconSource source) { this->wifi_icon_source_ = source; }
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
+#endif
   void set_mqtt_humidifier(bool enabled) { this->mqtt_humidifier_ = enabled; }
   void set_mqtt_discovery_prefix(const std::string &prefix) { this->mqtt_discovery_prefix_ = prefix; }
 
@@ -102,9 +113,14 @@ class LevoitHumidifier : public PollingComponent, public uart::UARTDevice {
   };
 
   // Wi-Fi icon on the humidifier display, driven like the stock firmware does
-  enum class WifiLed : uint8_t { UNKNOWN, OFF, ON, BLINK };
-  void update_wifi_led_(bool force);
-  bool connected_() const;
+  enum class WifiLed : uint8_t { UNKNOWN, OFF, ON, BLINK, BLINK_SLOW };
+  // now: write the frame at once instead of queueing it (an OTA update blocks the loop)
+  void update_wifi_led_(bool force, bool now = false);
+  WifiLed wanted_wifi_led_() const;
+  bool wifi_led_lit_() const { return this->wifi_led_ != WifiLed::OFF && this->wifi_led_ != WifiLed::UNKNOWN; }
+  bool api_connected_() const;
+  bool wifi_connected_() const;
+  bool ap_active_() const;
 
   void queue_command_(uint16_t cmd, std::vector<uint8_t> data);
   void send_next_();
@@ -157,6 +173,7 @@ class LevoitHumidifier : public PollingComponent, public uart::UARTDevice {
   ESPPreferenceObject auto_stop_pref_;
   WifiIconSource wifi_icon_source_{WifiIconSource::WIFI};
   WifiLed wifi_led_{WifiLed::UNKNOWN};
+  bool ota_active_{false};
   uint8_t target_humidity_{45};
   uint8_t mist_level_{1};
 

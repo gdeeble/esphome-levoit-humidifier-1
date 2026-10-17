@@ -1,0 +1,31 @@
+# Compile test: wifi_icon: status (HA on / Wi-Fi slow blink / OTA fast blink).
+esphome:
+  name: levoit-test-icon
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+external_components:
+  - source:
+      type: local
+      path: ../..
+    components: [levoit_humidifier]
+
+wifi:
+  ssid: test
+  password: test1234
+
+api:
+
+ota:
+  - platform: esphome
+
+uart:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+levoit_humidifier:
+  wifi_icon: status

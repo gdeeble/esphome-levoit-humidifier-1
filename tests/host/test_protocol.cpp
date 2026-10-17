@@ -50,7 +50,7 @@ static void test_encode() {
   CHECK(manual_level_data(2) == Bytes({0, 1, 2}));
 
   // every encoded frame must parse back
-  for (const Bytes &data : {Bytes{}, Bytes{1}, wifi_led_blink_data(), auto_mode_data(80)}) {
+  for (const Bytes &data : {Bytes{}, Bytes{1}, wifi_led_blink_data(), wifi_led_slow_blink_data(), auto_mode_data(80)}) {
     FrameParser p;
     FrameParser::Result r;
     Bytes enc = encode_frame(0x22, 9, 0xA129, data);

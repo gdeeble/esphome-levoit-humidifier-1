@@ -41,6 +41,9 @@ void LevoitHumidifier::setup() {
   this->queue_command_(CMD_QUERY_STATUS, {});
   this->publish_timer_();
   this->mqtt_setup_();
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
+#endif
 }
 
 void LevoitHumidifier::update() {
@@ -88,8 +91,9 @@ void LevoitHumidifier::dump_config() {
   ESP_LOGCONFIG(TAG, "Levoit humidifier:");
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Wi-Fi icon: %s",
-                this->wifi_icon_source_ == WifiIconSource::HOME_ASSISTANT ? "Home Assistant connected"
-                                                                          : "Wi-Fi connected");
+                this->wifi_icon_source_ == WifiIconSource::STATUS           ? "status (HA / Wi-Fi / OTA)"
+                : this->wifi_icon_source_ == WifiIconSource::HOME_ASSISTANT ? "Home Assistant connected"
+                                                                            : "Wi-Fi connected");
   ESP_LOGCONFIG(TAG, "  MQTT humidifier entity: %s", YESNO(this->mqtt_humidifier_));
 }
 
@@ -281,14 +285,15 @@ void LevoitHumidifier::handle_button_(uint16_t cmd, uint8_t value) {
 
 // ---- Wi-Fi icon ------------------------------------------------------------
 
-bool LevoitHumidifier::connected_() const {
-  if (this->wifi_icon_source_ == WifiIconSource::HOME_ASSISTANT) {
+bool LevoitHumidifier::api_connected_() const {
 #ifdef USE_API
-    return api::global_api_server != nullptr && api::global_api_server->is_connected_with_state_subscription();
+  return api::global_api_server != nullptr && api::global_api_server->is_connected_with_state_subscription();
 #else
-    return false;
+  return false;
 #endif
-  }
+}
+
+bool LevoitHumidifier::wifi_connected_() const {
 #ifdef USE_WIFI
   return wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected();
 #else
@@ -296,19 +301,40 @@ bool LevoitHumidifier::connected_() const {
 #endif
 }
 
-void LevoitHumidifier::update_wifi_led_(bool force) {
+bool LevoitHumidifier::ap_active_() const {
+#ifdef USE_WIFI
+  return wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_ap_active();
+#else
+  return false;
+#endif
+}
+
+LevoitHumidifier::WifiLed LevoitHumidifier::wanted_wifi_led_() const {
+  switch (this->wifi_icon_source_) {
+    case WifiIconSource::STATUS:
+      if (this->ota_active_)
+        return WifiLed::BLINK;
+      if (this->api_connected_())
+        return WifiLed::ON;
+      return this->wifi_connected_() ? WifiLed::BLINK_SLOW : WifiLed::OFF;
+    case WifiIconSource::HOME_ASSISTANT:
+      if (this->api_connected_())
+        return WifiLed::ON;
+      break;
+    default:
+      if (this->wifi_connected_())
+        return WifiLed::ON;
+      break;
+  }
+  // fallback hotspot, the ESPHome counterpart of pairing mode
+  return this->ap_active_() ? WifiLed::BLINK : WifiLed::OFF;
+}
+
+void LevoitHumidifier::update_wifi_led_(bool force, bool now) {
   if (!this->have_status_)
     return;  // the MCU has not answered yet
 
-  WifiLed want = WifiLed::OFF;
-  if (this->connected_()) {
-    want = WifiLed::ON;
-  }
-#ifdef USE_WIFI
-  else if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_ap_active()) {
-    want = WifiLed::BLINK;  // fallback hotspot, the ESPHome counterpart of pairing mode
-  }
-#endif
+  WifiLed want = this->wanted_wifi_led_();
   if (want == this->wifi_led_ && !force)
     return;
   // stock firmware holds back non-connected LED states while the humidifier is off,
@@ -316,20 +342,47 @@ void LevoitHumidifier::update_wifi_led_(bool force) {
   if (want != WifiLed::ON && !this->status_.power)
     return;
 
+  std::vector<uint8_t> data;
   switch (want) {
     case WifiLed::ON:
-      this->queue_command_(CMD_SET_WIFI_LED, wifi_led_on_data());
+      data = wifi_led_on_data();
       break;
     case WifiLed::BLINK:
-      this->queue_command_(CMD_SET_WIFI_LED, wifi_led_blink_data());
+      data = wifi_led_blink_data();
+      break;
+    case WifiLed::BLINK_SLOW:
+      data = wifi_led_slow_blink_data();
       break;
     default:
-      this->queue_command_(CMD_SET_WIFI_LED, wifi_led_off_data());
+      data = wifi_led_off_data();
       break;
   }
-  ESP_LOGD(TAG, "Wi-Fi icon: %s", want == WifiLed::ON ? "on" : want == WifiLed::BLINK ? "blinking" : "off");
+  if (now) {
+    // own sequence number, so the in-flight command's ACK still matches
+    this->write_frame_(CTRL_VERSION | CTRL_WANT_ACK, this->tx_seq_ + 0x80, CMD_SET_WIFI_LED, data);
+  } else {
+    this->queue_command_(CMD_SET_WIFI_LED, data);
+  }
+  ESP_LOGD(TAG, "Wi-Fi icon: %s", want == WifiLed::ON           ? "on"
+                                  : want == WifiLed::BLINK      ? "blinking fast"
+                                  : want == WifiLed::BLINK_SLOW ? "blinking slowly"
+                                                                : "off");
   this->wifi_led_ = want;
 }
+
+#ifdef USE_OTA_STATE_LISTENER
+void LevoitHumidifier::on_ota_global_state(ota::OTAState state, float progress, uint8_t error,
+                                          ota::OTAComponent *comp) {
+  if (state == ota::OTA_STARTED) {
+    this->ota_active_ = true;
+    this->update_wifi_led_(false, true);  // the transfer blocks the loop, the queue would wait
+  } else if (state == ota::OTA_ERROR || state == ota::OTA_ABORT) {
+    this->ota_active_ = false;
+    this->update_wifi_led_(false);
+  }
+  // OTA_COMPLETED: the device reboots, still blinking until the new firmware sets the icon
+}
+#endif
 
 // ---- commands --------------------------------------------------------------
 
@@ -364,7 +417,7 @@ bool LevoitHumidifier::set_auto_mode(bool on) {
       this->queue_command_(CMD_SET_MANUAL_LEVEL, manual_level_data(this->mist_level_));
     }
   }
-  if (this->status_.display_config > 0 && this->wifi_led_ == WifiLed::ON)
+  if (this->status_.display_config > 0 && this->wifi_led_lit_())
     this->update_wifi_led_(true);
   return true;
 }
@@ -671,7 +724,7 @@ void LevoitHumidifier::handle_status_(const uint8_t *data, size_t len) {
 
   if (first || (s.power && !prev.power)) {
     this->update_wifi_led_(true);
-  } else if (s.display_config > 0 && prev.display_config == 0 && this->wifi_led_ == WifiLed::ON) {
+  } else if (s.display_config > 0 && prev.display_config == 0 && this->wifi_led_lit_()) {
     this->update_wifi_led_(true);  // stock firmware re-lights the icon when the display comes back
   }
 

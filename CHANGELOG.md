@@ -3,7 +3,16 @@
 Versions follow [semantic versioning](https://semver.org). While the version starts with `0.`,
 any release may change entities or options; check this file before updating.
 
-## v0.2.0 — night light (gdeeble fork, 2026-10-16)
+## Unreleased (wifi-icon-status branch)
+
+### Added
+- `wifi_icon: status`: the display's Wi-Fi icon is on while Home Assistant is connected,
+  blinks slowly (1 s) with Wi-Fi only, and blinks fast (0.5 s) while an OTA update is
+  written. The MCU does the blinking (0xA129 carries the on/off times), so the icon is only
+  sent when its state changes. The OTA blink is written straight to the UART when the
+  update starts, because the transfer blocks the loop until the reboot.
+
+ — night light (gdeeble fork, 2026-10-16)
 
 Tested on a US Dual 200S (7-colour night light), MCU firmware 2.0.02.
 
