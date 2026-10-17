@@ -314,9 +314,10 @@ LevoitHumidifier::WifiLed LevoitHumidifier::wanted_wifi_led_() const {
     case WifiIconSource::STATUS:
       if (this->ota_active_)
         return WifiLed::BLINK;
-      if (this->api_connected_())
-        return WifiLed::ON;
-      return this->wifi_connected_() ? WifiLed::BLINK_SLOW : WifiLed::OFF;
+      // humidifier off: only "on Wi-Fi"; on: on with Home Assistant, slow blink without
+      if (this->wifi_connected_())
+        return !this->status_.power || this->api_connected_() ? WifiLed::ON : WifiLed::BLINK_SLOW;
+      break;
     case WifiIconSource::HOME_ASSISTANT:
       if (this->api_connected_())
         return WifiLed::ON;
@@ -337,9 +338,10 @@ void LevoitHumidifier::update_wifi_led_(bool force, bool now) {
   WifiLed want = this->wanted_wifi_led_();
   if (want == this->wifi_led_ && !force)
     return;
-  // stock firmware holds back non-connected LED states while the humidifier is off,
-  // and sends the current state again when it is switched on
-  if (want != WifiLed::ON && !this->status_.power)
+  // stock firmware holds back non-connected LED states while the humidifier is off, and
+  // sends the current state again when it is switched on. Status mode has its own rule
+  // for "off" (wanted_wifi_led_) and shows an update or the hotspot then too.
+  if (want != WifiLed::ON && !this->status_.power && this->wifi_icon_source_ != WifiIconSource::STATUS)
     return;
 
   std::vector<uint8_t> data;

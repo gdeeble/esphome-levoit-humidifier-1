@@ -6,9 +6,10 @@ any release may change entities or options; check this file before updating.
 ## Unreleased (wifi-icon-status branch)
 
 ### Added
-- `wifi_icon: status`: the display's Wi-Fi icon is on while Home Assistant is connected,
-  blinks slowly (1 s) with Wi-Fi only, and blinks fast (0.5 s) while an OTA update is
-  written. The MCU does the blinking (0xA129 carries the on/off times), so the icon is only
+- `wifi_icon: status`: with the humidifier on, the display's Wi-Fi icon is on while Home
+  Assistant is connected and blinks slowly (1 s) with Wi-Fi only; with it off, the icon is
+  on whenever Wi-Fi is connected. It blinks fast (0.5 s) while an OTA update is written,
+  on or off. The MCU does the blinking (0xA129 carries the on/off times), so the icon is only
   sent when its state changes. The OTA blink is written straight to the UART when the
   update starts, because the transfer blocks the loop until the reboot.
 
